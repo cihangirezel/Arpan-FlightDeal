@@ -19,11 +19,14 @@ HELP_TEXT = (
     "/deals - scan configured routes now\n"
     "/search AYT 28.09.2026 - search one destination and date\n"
     "AYT 28.09.2026 - quick search one destination and date\n"
+    "AYT 28.07.2026 03.08.2026 - round-trip search\n"
     "/help - show commands"
 )
 
 QUICK_SEARCH_PATTERN = re.compile(
-    r"^/?(?:search\s+)?(?P<destination>[A-Za-z]{3})\s+(?P<date>\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})$",
+    r"^/?(?:search\s+)?(?P<destination>[A-Za-z]{3})\s+"
+    r"(?P<departure_date>\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})"
+    r"(?:\s+(?P<return_date>\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2}))?$",
     re.IGNORECASE,
 )
 
@@ -92,13 +95,13 @@ class TelegramBot:
 
         quick_search = self.parse_quick_search(text)
         if quick_search:
-            destination, departure_date = quick_search
+            destination, departure_date, return_date = quick_search
+            search_text = f"Searching DUS to {destination} on {departure_date.strftime('%Y-%m-%d')}"
+            if return_date:
+                search_text += f", returning {return_date.strftime('%Y-%m-%d')}"
+            self.notifier.send_telegram(f"{search_text}...", chat_id=chat_id)
             self.notifier.send_telegram(
-                f"Searching DUS to {destination} on {departure_date.strftime('%Y-%m-%d')}...",
-                chat_id=chat_id,
-            )
-            self.notifier.send_telegram(
-                self.search_destination(destination, departure_date),
+                self.search_destination(destination, departure_date, return_date),
                 chat_id=chat_id,
             )
             return
@@ -111,15 +114,21 @@ class TelegramBot:
             return None
 
         destination = match.group("destination").upper()
-        date_text = match.group("date")
+        departure_date = self.parse_date(match.group("departure_date"))
+        return_date = self.parse_date(match.group("return_date")) if match.group("return_date") else None
+        if return_date and return_date <= departure_date:
+            return None
+        return destination, departure_date, return_date
+
+    def parse_date(self, date_text):
         for date_format in ("%d.%m.%Y", "%Y-%m-%d"):
             try:
-                return destination, datetime.strptime(date_text, date_format)
+                return datetime.strptime(date_text, date_format)
             except ValueError:
                 continue
-        return None
+        raise ValueError(f"Invalid date: {date_text}")
 
-    def search_destination(self, destination, departure_date):
+    def search_destination(self, destination, departure_date, return_date=None):
         origin = os.getenv("ORIGIN_IATA", "DUS")
         currency = os.getenv("CURRENCY", "EUR")
         travel_class = os.getenv("TRAVEL_CLASS", "ECONOMY")
@@ -128,14 +137,27 @@ class TelegramBot:
             origin=origin,
             departure_date=departure_date,
             destination=destination,
+            return_date=return_date,
             currency=currency,
             travel_class=travel_class,
         )
         if not flight_offers:
-            return f"No flights found for {origin} to {destination} on {departure_date.strftime('%Y-%m-%d')}."
+            return self.format_no_result(origin, destination, departure_date, return_date)
 
         deal = FlightData(flight_offer=flight_offers["data"][0])
-        return f"Best result for {origin} to {destination} on {departure_date.strftime('%Y-%m-%d')}:\n{deal}"
+        return f"{self.format_search_title(origin, destination, departure_date, return_date)}:\n{deal}"
+
+    def format_search_title(self, origin, destination, departure_date, return_date=None):
+        title = f"Best result for {origin} to {destination} on {departure_date.strftime('%Y-%m-%d')}"
+        if return_date:
+            title += f", returning {return_date.strftime('%Y-%m-%d')}"
+        return title
+
+    def format_no_result(self, origin, destination, departure_date, return_date=None):
+        title = f"No flights found for {origin} to {destination} on {departure_date.strftime('%Y-%m-%d')}"
+        if return_date:
+            title += f", returning {return_date.strftime('%Y-%m-%d')}"
+        return f"{title}."
 
     def format_deals(self, deals):
         if not deals:

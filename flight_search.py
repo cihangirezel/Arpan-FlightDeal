@@ -20,6 +20,7 @@ class FlightSearch:
         departure_date,
         origin,
         destination,
+        return_date=None,
         adults=1,
         currency="EUR",
         travel_class="ECONOMY",
@@ -35,7 +36,7 @@ class FlightSearch:
             "departure_id": origin,
             "arrival_id": destination,
             "outbound_date": departure_date.strftime("%Y-%m-%d"),
-            "type": "2",
+            "type": "1" if return_date else "2",
             "adults": adults,
             "currency": currency,
             "travel_class": self._map_travel_class(travel_class),
@@ -44,6 +45,8 @@ class FlightSearch:
             "gl": self.default_gl,
             "hl": self.default_hl,
         }
+        if return_date:
+            params["return_date"] = return_date.strftime("%Y-%m-%d")
 
         try:
             response = requests.get(self.SEARCH_URL, params=params, timeout=30)
