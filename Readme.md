@@ -75,6 +75,8 @@ Supported commands:
 
 - `/deals`: scan the configured routes and reply with the cheapest deals below your thresholds.
 - `/scan`: same as `/deals`.
+- `/search AYT 28.09.2026`: search one destination and date.
+- `AYT 28.09.2026`: quick search one destination and date.
 - `/help`: show the available commands.
 
 Set `SEND_NOTIFICATIONS=true` if you also want `python main.py` to push deal alerts to email and Telegram during a normal scheduled scan.
