@@ -11,8 +11,6 @@ class DataManager:
     def __init__(self):
         self.sheety_end = os.getenv("SHEETY_PRICES_ENDPOINT", "")
         self.sheet = self.my_sheet()
-        self.city_codes = self.get_city_codes()
-        self.lowest_price = self.get_prices()
 
     def my_sheet(self):
         if self.sheety_end:
@@ -39,14 +37,21 @@ class DataManager:
         print("No route data configured. Set SHEETY_PRICES_ENDPOINT or WATCH_ROUTES_JSON.")
         return []
 
+    def routes(self):
+        return [
+            route
+            for route in self.sheet
+            if "iataCode" in route and "lowestPrice" in route
+        ]
+
     def get_city_codes(self):
-        return [city["iataCode"] for city in self.sheet if "iataCode" in city]
+        return [city["iataCode"] for city in self.routes()]
 
     def cities(self):
-        return self.city_codes
+        return self.get_city_codes()
 
     def get_prices(self):
-        return [price["lowestPrice"] for price in self.sheet if "lowestPrice" in price]
+        return [price["lowestPrice"] for price in self.routes()]
 
     def flight_price(self):
-        return self.lowest_price
+        return self.get_prices()

@@ -32,7 +32,7 @@ DEPARTURE_DATE=2026-06-15
 CURRENCY=EUR
 TRAVEL_CLASS=ECONOMY
 SHEETY_PRICES_ENDPOINT=
-WATCH_ROUTES_JSON=[{"iataCode":"BER","lowestPrice":120},{"iataCode":"MAD","lowestPrice":150}]
+WATCH_ROUTES_JSON=[{"iataCode":"AYT","lowestPrice":150,"departureDate":"2026-06-15"},{"iataCode":"LIS","lowestPrice":160,"departureDate":"2026-07-03"}]
 SMTP_EMAIL=you@example.com
 SMTP_PASSWORD=your_app_password
 NOTIFY_TO=you@example.com
@@ -78,6 +78,16 @@ Supported commands:
 - `/help`: show the available commands.
 
 Set `SEND_NOTIFICATIONS=true` if you also want `python main.py` to push deal alerts to email and Telegram during a normal scheduled scan.
+
+## Different Dates
+
+Each route can include its own `departureDate`:
+
+```ini
+WATCH_ROUTES_JSON=[{"iataCode":"AYT","lowestPrice":150,"departureDate":"2026-06-15"},{"iataCode":"LIS","lowestPrice":160,"departureDate":"2026-07-03"}]
+```
+
+If a route does not include `departureDate`, the app uses the global `DEPARTURE_DATE` value.
 
 ## Notes
 
