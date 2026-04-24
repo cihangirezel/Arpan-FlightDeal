@@ -1,140 +1,49 @@
-## Flight Deal Finder
+# Flight Deal Finder
 
-**Flight Deal Finder** helps you discover affordable flights by comparing live prices from the Amadeus API against your target thresholds stored in a Google Sheet (via Sheety), and notifies you via email when a deal is found.
+Flight Deal Finder compares live ticket prices from the SerpApi Google Flights API against your target thresholds stored in a Google Sheet via Sheety, then alerts you by email when it finds a cheaper trip.
 
----
+## Features
 
-### 🔍 Features
+- Searches live flights with SerpApi instead of Amadeus.
+- Compares live prices against your saved target prices.
+- Reads destination IATA codes and price thresholds from Sheety.
+- Can send email alerts through Gmail SMTP.
 
-* **Automated Flight Search:** Query flight offers for specified routes and dates using the Amadeus API.
-* **Price Monitoring:** Compare current fares against your predefined lowest prices in a Google Sheet.
-* **Instant Alerts:** Send email notifications through Gmail when a lower-priced flight is detected.
-* **Centralized Data Storage:** Manage destination IATA codes and price thresholds in a Google Sheet via Sheety.
+## Setup
 
----
-
-### 🚀 Tech Stack & Requirements
-
-* **Language:** Python 3.6+
-* **Libraries:**
-
-  * `requests`
-  * `python-dotenv`
-  * `smtplib` (standard library)
-* **APIs & Services:**
-
-  * **Amadeus API** (flight offers)
-  * **Sheety API** (Google Sheets integration)
-  * **Gmail SMTP** (email notifications)
-
----
-
-### ⚙️ Setup & Configuration
-
-1. **Clone the repository:**
-
-```bash
-git clone <repository_url>
-   cd arpan8925-flight-deal
-```
-2. **Install dependencies:**
+1. Create a SerpApi account and get your API key from [serpapi.com](https://serpapi.com/).
+2. Create a `.env` file by copying `.env.example`.
+3. Fill in your SerpApi key, origin, departure date, and optional SMTP credentials.
+4. Update `data_manager.py` with your Sheety endpoint.
+5. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
-3. **Environment variables:**
 
-   * Create a `.env` file in project root:
+## Environment Variables
 
 ```ini
-AMADEUS_API_KEY=your_amadeus_api_key
-     AMADEUS_API_SECRET=your_amadeus_api_secret
+SERPAPI_API_KEY=your_serpapi_key
+SERPAPI_GL=de
+SERPAPI_HL=en
+ORIGIN_IATA=DUS
+DEPARTURE_DATE=2026-06-15
+CURRENCY=EUR
+TRAVEL_CLASS=ECONOMY
+SMTP_EMAIL=you@example.com
+SMTP_PASSWORD=your_app_password
+NOTIFY_TO=you@example.com
 ```
-   * In `notification_manager.py`, set your Gmail credentials:
 
-```python
-self.my_email = "your_email@gmail.com"
-     self.my_pass  = "your_app_password"  # Use an App Password for Gmail
-```
-4. **Google Sheet & Sheety:**
-
-   * Create (or open) a Google Sheet with columns: `city`, `iataCode`, `lowestPrice`.
-   * Use Sheety to generate an endpoint and update it in `data_manager.py`:
-
-```python
-self.sheety_endpoint = "https://api.sheety.co/your_project/flightDeals/prices"
-```
-5. **Run the application:**
+## Run
 
 ```bash
 python main.py
 ```
 
----
+## Notes
 
-### 📂 Project Structure
-
-```
-├── data_manager.py          # Fetch/update destination data via Sheety
-├── flight_search.py         # Authenticate & search flights with Amadeus
-├── flight_data.py           # Parse and represent flight offer details
-├── notification_manager.py  # Send email alerts via SMTP
-├── main.py                  # Orchestrates data flow and notifications
-├── .env                     # Local environment variables (gitignored)
-└── requirements.txt         # Python dependencies
-```
-
----
-
-### 🏛️ Architecture
-
-```mermaid
-sequenceDiagram
-    participant Main as main.py
-    participant DataMgr as data_manager.py
-    participant Sheety as Sheety API
-    participant Search as flight_search.py
-    participant Amadeus as Amadeus API
-    participant Data as flight_data.py
-    participant Notify as notification_manager.py
-    participant Email as Gmail SMTP
-
-    Main->>DataMgr: load_destinations()
-    DataMgr->>Sheety: GET prices
-    Sheety-->>DataMgr: destination list
-    Main->>Search: get_access_token()
-    Search->>Amadeus: POST token request
-    Amadeus-->>Search: token
-    loop each destination
-      Main->>Search: search(origin, dest, dates)
-      Search->>Amadeus: GET flight offers
-      Amadeus-->>Search: offers
-      alt offers found
-        loop each offer
-          Search-->>Main: offer JSON
-          Main->>Data: parse(offer)
-          Main->>DataMgr: get_lowest_price(dest)
-          alt current_price < lowestPrice
-            Main->>Notify: notify(flightData)
-            Notify->>Email: send(email)
-            Email-->>Notify: delivered
-          end
-        end
-      end
-    end
-```
-
----
-
-### 💡 Future Improvements
-
-* **Robust Error Handling:** Add retries, exponential backoff, and detailed logging for API failures.
-* **Flexible Date Ranges:** Allow users to specify departure/return date windows instead of single dates.
-* **Asynchronous Execution:** Use `asyncio` or a task queue (e.g., Celery) for parallel requests and notifications.
-* **Persistent Database:** Migrate from Google Sheets to a relational database (PostgreSQL, SQLite) for scalability.
-* **User Interface:** Provide a CLI or lightweight web dashboard for configuring destinations and thresholds.
-* **Dockerization:** Containerize the application for easier deployment and environment consistency.
-
----
-
-> *Happy deal hunting! 🚀*
+- This version uses SerpApi's `google_flights` engine with one-way searches.
+- The app normalizes SerpApi responses so the rest of the code can keep its simpler flight parsing flow.
+- If SMTP values are missing, the script will still run and print deals without trying to send email.
