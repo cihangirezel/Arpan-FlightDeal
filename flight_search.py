@@ -52,6 +52,13 @@ class FlightSearch:
             response = requests.get(self.SEARCH_URL, params=params, timeout=30)
             response.raise_for_status()
             payload = response.json()
+            if return_date:
+                offers = self._extract_round_trip_offers(payload, params, currency)
+                if offers:
+                    return {"data": offers}
+                print(f"No round-trip flights found for {origin} -> {destination}.")
+                return None
+
             offers = self._extract_offers(payload, currency)
             if offers:
                 return {"data": offers}
@@ -60,6 +67,33 @@ class FlightSearch:
         except requests.exceptions.RequestException as error:
             print(f"An error occurred while searching flights: {error}")
             return None
+
+    def _extract_round_trip_offers(self, payload, params, currency):
+        outbound_options = payload.get("best_flights", []) + payload.get("other_flights", [])
+        if not outbound_options:
+            return []
+
+        outbound_offer = outbound_options[0]
+        departure_token = outbound_offer.get("departure_token")
+        if not departure_token:
+            return []
+
+        return_params = dict(params)
+        return_params["departure_token"] = departure_token
+        try:
+            response = requests.get(self.SEARCH_URL, params=return_params, timeout=30)
+            response.raise_for_status()
+            return_payload = response.json()
+        except requests.exceptions.RequestException as error:
+            print(f"An error occurred while searching return flights: {error}")
+            return []
+
+        return_options = return_payload.get("best_flights", []) + return_payload.get("other_flights", [])
+        if not return_options:
+            return []
+
+        return_offer = return_options[0]
+        return [self._normalize_round_trip_offer(outbound_offer, return_offer, currency)]
 
     def _extract_offers(self, payload, currency):
         offers = []
@@ -71,6 +105,33 @@ class FlightSearch:
         return offers
 
     def _normalize_offer(self, raw_offer, currency):
+        itinerary = self._normalize_itinerary(raw_offer)
+        if not itinerary:
+            return None
+
+        return {
+            "price": {
+                "total": str(raw_offer.get("price", "")),
+                "currency": currency,
+            },
+            "itineraries": [itinerary],
+        }
+
+    def _normalize_round_trip_offer(self, outbound_offer, return_offer, currency):
+        outbound_itinerary = self._normalize_itinerary(outbound_offer)
+        return_itinerary = self._normalize_itinerary(return_offer)
+        if not outbound_itinerary or not return_itinerary:
+            return None
+
+        return {
+            "price": {
+                "total": str(return_offer.get("price") or outbound_offer.get("price", "")),
+                "currency": currency,
+            },
+            "itineraries": [outbound_itinerary, return_itinerary],
+        }
+
+    def _normalize_itinerary(self, raw_offer):
         flights = raw_offer.get("flights", [])
         if not flights:
             return None
@@ -99,16 +160,8 @@ class FlightSearch:
             )
 
         return {
-            "price": {
-                "total": str(raw_offer.get("price", "")),
-                "currency": currency,
-            },
-            "itineraries": [
-                {
-                    "duration": self._duration_to_iso(raw_offer.get("total_duration")),
-                    "segments": segments,
-                }
-            ],
+            "duration": self._duration_to_iso(raw_offer.get("total_duration")),
+            "segments": segments,
         }
 
     def _map_travel_class(self, travel_class):

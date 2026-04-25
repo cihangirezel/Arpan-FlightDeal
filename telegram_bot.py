@@ -145,7 +145,70 @@ class TelegramBot:
             return self.format_no_result(origin, destination, departure_date, return_date)
 
         deal = FlightData(flight_offer=flight_offers["data"][0])
-        return f"{self.format_search_title(origin, destination, departure_date, return_date)}:\n{deal}"
+        if return_date:
+            return self.format_round_trip_result(origin, destination, departure_date, return_date, deal)
+        return self.format_one_way_result(origin, destination, departure_date, deal)
+
+    def format_one_way_result(self, origin, destination, departure_date, deal):
+        first_segment = deal.segments[0]
+        return "\n".join(
+            [
+                f"{origin} to {destination} on {departure_date.strftime('%Y-%m-%d')} local time:",
+                self.format_segment(first_segment),
+                f"PRICE: {self.format_price(deal)}",
+            ]
+        )
+
+    def format_round_trip_result(self, origin, destination, departure_date, return_date, deal):
+        outbound_segment = deal.segments[0]
+        return_segment = deal.return_segments[0] if deal.return_segments else None
+        lines = [
+            (
+                f"{origin} to {destination} on {departure_date.strftime('%Y-%m-%d')} local time, "
+                f"returning {return_date.strftime('%Y-%m-%d')} local time:"
+            ),
+            self.format_segment(outbound_segment),
+        ]
+        if return_segment:
+            lines.append(self.format_segment(return_segment))
+        lines.append(f"PRICE: {self.format_price(deal)}")
+        return "\n".join(lines)
+
+    def format_segment(self, segment):
+        departure_time = self.format_local_datetime(segment["departure_time"])
+        duration = self.format_duration(segment.get("duration", ""))
+        return (
+            f"Departure: from {segment['departure_airport']} to {segment['arrival_airport']} "
+            f"at {departure_time}, o'clock  Duration: {duration}"
+        )
+
+    def format_local_datetime(self, value):
+        if not value:
+            return "unknown time"
+        for date_format in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"):
+            try:
+                parsed = datetime.strptime(value, date_format)
+                return parsed.strftime("%d-%m-%Y at %H:%M")
+            except ValueError:
+                continue
+        return value
+
+    def format_duration(self, value):
+        match = re.match(r"^PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?$", value or "")
+        if not match:
+            return value or "unknown"
+        hours = int(match.group("hours") or 0)
+        minutes = int(match.group("minutes") or 0)
+        parts = []
+        if hours:
+            parts.append(f"{hours} Hour" + ("" if hours == 1 else "s"))
+        if minutes:
+            parts.append(f"{minutes} Minute" + ("" if minutes == 1 else "s"))
+        return " ".join(parts) or "0 Minutes"
+
+    def format_price(self, deal):
+        currency = "Euro" if deal.currency == "EUR" else deal.currency
+        return f"{deal.price} {currency}"
 
     def format_search_title(self, origin, destination, departure_date, return_date=None):
         title = f"Best result for {origin} to {destination} on {departure_date.strftime('%Y-%m-%d')}"
