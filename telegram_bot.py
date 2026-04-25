@@ -153,7 +153,6 @@ class TelegramBot:
         first_segment = deal.segments[0]
         return "\n".join(
             [
-                f"{origin} to {destination} on {departure_date.strftime('%Y-%m-%d')} local time:",
                 self.format_segment(first_segment),
                 f"PRICE: {self.format_price(deal)}",
             ]
@@ -162,13 +161,7 @@ class TelegramBot:
     def format_round_trip_result(self, origin, destination, departure_date, return_date, deal):
         outbound_segment = deal.segments[0]
         return_segment = deal.return_segments[0] if deal.return_segments else None
-        lines = [
-            (
-                f"{origin} to {destination} on {departure_date.strftime('%Y-%m-%d')} local time, "
-                f"returning {return_date.strftime('%Y-%m-%d')} local time:"
-            ),
-            self.format_segment(outbound_segment),
-        ]
+        lines = [self.format_segment(outbound_segment)]
         if return_segment:
             lines.append(self.format_segment(return_segment))
         lines.append(f"PRICE: {self.format_price(deal)}")
@@ -179,7 +172,7 @@ class TelegramBot:
         duration = self.format_duration(segment.get("duration", ""))
         return (
             f"Departure: from {segment['departure_airport']} to {segment['arrival_airport']} "
-            f"at {departure_time}, o'clock  Duration: {duration}"
+            f"at {departure_time}  Duration: {duration}"
         )
 
     def format_local_datetime(self, value):
