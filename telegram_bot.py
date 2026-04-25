@@ -155,6 +155,8 @@ class TelegramBot:
             [
                 self.format_segment(first_segment),
                 f"PRICE: {self.format_price(deal)}",
+                f"Airline: {self.format_airline(deal)}",
+                f"Book: {self.format_booking_link(deal)}",
             ]
         )
 
@@ -165,6 +167,8 @@ class TelegramBot:
         if return_segment:
             lines.append(self.format_segment(return_segment))
         lines.append(f"PRICE: {self.format_price(deal)}")
+        lines.append(f"Airline: {self.format_airline(deal)}")
+        lines.append(f"Book: {self.format_booking_link(deal)}")
         return "\n".join(lines)
 
     def format_segment(self, segment):
@@ -202,6 +206,20 @@ class TelegramBot:
     def format_price(self, deal):
         currency = "Euro" if deal.currency == "EUR" else deal.currency
         return f"{deal.price} {currency}"
+
+    def format_airline(self, deal):
+        return self.airlines_from_segments(deal)
+
+    def airlines_from_segments(self, deal):
+        names = []
+        for segment in deal.segments + deal.return_segments:
+            name = segment.get("carrier_name")
+            if name and name not in names:
+                names.append(name)
+        return ", ".join(names) or "Unknown"
+
+    def format_booking_link(self, deal):
+        return deal.booking_link or "No booking link available"
 
     def format_search_title(self, origin, destination, departure_date, return_date=None):
         title = f"Best result for {origin} to {destination} on {departure_date.strftime('%Y-%m-%d')}"

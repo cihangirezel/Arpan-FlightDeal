@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from urllib.parse import quote_plus
 
 import dotenv
 import requests
@@ -93,7 +94,9 @@ class FlightSearch:
             return []
 
         return_offer = return_options[0]
-        return [self._normalize_round_trip_offer(outbound_offer, return_offer, currency)]
+        booking_details = self._fetch_booking_details(return_offer.get("booking_token"), params)
+        booking_link = self._google_flights_link(params)
+        return [self._normalize_round_trip_offer(outbound_offer, return_offer, currency, booking_details, booking_link)]
 
     def _extract_offers(self, payload, currency):
         offers = []
@@ -109,15 +112,20 @@ class FlightSearch:
         if not itinerary:
             return None
 
+        booking_link = self._google_flights_link_from_offer(raw_offer)
         return {
             "price": {
                 "total": str(raw_offer.get("price", "")),
                 "currency": currency,
             },
             "itineraries": [itinerary],
+            "booking": {
+                "book_with": self._airline_summary([itinerary]),
+                "link": booking_link,
+            },
         }
 
-    def _normalize_round_trip_offer(self, outbound_offer, return_offer, currency):
+    def _normalize_round_trip_offer(self, outbound_offer, return_offer, currency, booking_details, booking_link):
         outbound_itinerary = self._normalize_itinerary(outbound_offer)
         return_itinerary = self._normalize_itinerary(return_offer)
         if not outbound_itinerary or not return_itinerary:
@@ -129,6 +137,10 @@ class FlightSearch:
                 "currency": currency,
             },
             "itineraries": [outbound_itinerary, return_itinerary],
+            "booking": {
+                "book_with": booking_details.get("book_with") or self._airline_summary([outbound_itinerary, return_itinerary]),
+                "link": booking_details.get("link") or booking_link,
+            },
         }
 
     def _normalize_itinerary(self, raw_offer):
@@ -196,3 +208,63 @@ class FlightSearch:
             return ""
         hours, mins = divmod(int(minutes), 60)
         return f"PT{hours}H{mins}M"
+
+    def _fetch_booking_details(self, booking_token, params):
+        if not booking_token:
+            return {}
+
+        booking_params = dict(params)
+        booking_params.pop("departure_token", None)
+        booking_params["booking_token"] = booking_token
+        try:
+            response = requests.get(self.SEARCH_URL, params=booking_params, timeout=30)
+            response.raise_for_status()
+            payload = response.json()
+        except requests.exceptions.RequestException as error:
+            print(f"An error occurred while fetching booking options: {error}")
+            return {}
+
+        options = payload.get("booking_options", [])
+        if not options:
+            return {}
+
+        option = options[0]
+        together = option.get("together") or {}
+        book_with = together.get("book_with")
+        booking_request = together.get("booking_request") or {}
+        link = booking_request.get("url") if not booking_request.get("post_data") else ""
+        return {
+            "book_with": book_with,
+            "link": link,
+        }
+
+    def _google_flights_link(self, params):
+        origin = params.get("departure_id", "")
+        destination = params.get("arrival_id", "")
+        outbound_date = params.get("outbound_date", "")
+        return_date = params.get("return_date", "")
+        query = f"Flights from {origin} to {destination} on {outbound_date}"
+        if return_date:
+            query += f" returning {return_date}"
+        return "https://www.google.com/travel/flights?q=" + quote_plus(query)
+
+    def _google_flights_link_from_offer(self, raw_offer):
+        flights = raw_offer.get("flights", [])
+        if not flights:
+            return ""
+        first_flight = flights[0]
+        origin = first_flight.get("departure_airport", {}).get("id", "")
+        destination = flights[-1].get("arrival_airport", {}).get("id", "")
+        outbound_time = first_flight.get("departure_airport", {}).get("time", "")
+        outbound_date = outbound_time.split(" ")[0] if outbound_time else ""
+        query = f"Flights from {origin} to {destination} on {outbound_date}"
+        return "https://www.google.com/travel/flights?q=" + quote_plus(query)
+
+    def _airline_summary(self, itineraries):
+        airlines = []
+        for itinerary in itineraries:
+            for segment in itinerary.get("segments", []):
+                carrier_name = segment.get("carrierName")
+                if carrier_name and carrier_name not in airlines:
+                    airlines.append(carrier_name)
+        return ", ".join(airlines)

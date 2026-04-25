@@ -6,6 +6,9 @@ class FlightData:
 
         self.price = flight_offer["price"]["total"]
         self.currency = flight_offer["price"]["currency"]
+        self.booking = flight_offer.get("booking", {})
+        self.book_with = self.booking.get("book_with", "")
+        self.booking_link = self.booking.get("link", "")
         self.departure_airport = first_segment["departure"]["iataCode"]
         self.departure_time = first_segment["departure"]["at"]
         self.arrival_airport = itinerary["segments"][-1]["arrival"]["iataCode"]
